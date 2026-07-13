@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="{{ language or 'en' }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "EPV RPPS" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/admin">EPV RPPS</a>
+      {% if admin_user %}
+      <nav>
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/participants">Participants</a>
+        <a href="/admin/export.csv">Export CSV</a>
+        <form method="post" action="/admin/logout">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button type="submit" class="link-button">Log out</button>
+        </form>
+      </nav>
+      {% endif %}
+    </header>
+    <main class="page">
+      {% if flash %}
+      <div class="flash">{{ flash }}</div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

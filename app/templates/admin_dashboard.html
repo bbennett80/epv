@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-heading">
+  <div>
+    <p class="eyebrow">Empowering the Participant Voice</p>
+    <h1>At-a-Glance Dashboard</h1>
+    <p class="muted">Participant experience, response coverage, and key survey data elements.</p>
+  </div>
+  <div class="actions">
+    <a class="button secondary" href="/admin/participants">Participant links</a>
+    <a class="button" href="/admin/export.csv">Export CSV</a>
+  </div>
+</div>
+
+<div class="grid metrics">
+  <div class="metric"><strong>{{ stats.total }}</strong><span>Total survey links</span></div>
+  <div class="metric"><strong>{{ stats.complete }}</strong><span>Complete</span></div>
+  <div class="metric"><strong>{{ stats.incomplete }}</strong><span>In progress</span></div>
+  <div class="metric"><strong>{{ stats.completion_rate }}%</strong><span>Completion rate</span></div>
+</div>
+
+<section class="dashboard-section">
+  <form class="panel dashboard-controls" method="get" action="/admin">
+    <div class="field">
+      <label for="question_type">Question type</label>
+      <select id="question_type" name="question_type">
+        {% for option in stats.question_types %}
+        <option value="{{ option.value }}" {% if option.value == stats.question_type %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="filter_field">Filter</label>
+      <select id="filter_field" name="filter_field">
+        <option value="nofilter" {% if stats.filter_field == "nofilter" %}selected{% endif %}>No filter</option>
+        <option value="bysite" disabled>By site — no local site field</option>
+        {% set filter_group = namespace(value="") %}
+        {% for option in stats.filters %}
+          {% if option.group != filter_group.value %}
+            {% if filter_group.value %}</optgroup>{% endif %}
+            <optgroup label="{{ option.group }}">
+            {% set filter_group.value = option.group %}
+          {% endif %}
+          <option value="{{ option.field }}" {% if option.field == stats.filter_field %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+        {% if filter_group.value %}</optgroup>{% endif %}
+      </select>
+    </div>
+    <button id="load-table" type="submit">Load Table</button>
+  </form>
+
+  <div class="section-title analysis-heading">
+    <div>
+      <p class="eyebrow">Selected analysis</p>
+      <h2>{{ stats.analysis.title }}</h2>
+    </div>
+    {% if not stats.analysis.is_response_rates %}
+    <p class="section-help">Top Box percentage selecting the most positive response; not-applicable responses are excluded.</p>
+    {% endif %}
+  </div>
+  <div class="table-wrap analysis-table">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ "Measure" if stats.analysis.is_response_rates else "Survey item" }}</th>
+          {% if not stats.analysis.is_response_rates %}<th>Top response</th>{% endif %}
+          {% for column in stats.analysis.columns %}<th>{{ column.label }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in stats.analysis.rows %}
+        <tr>
+          <td><strong>{{ item.label }}</strong><span class="field-code">{{ item.field }}</span></td>
+          {% if not stats.analysis.is_response_rates %}<td>{{ item.score_label }}</td>{% endif %}
+          {% for cell in item.cells %}
+          <td>
+            {% if stats.analysis.is_response_rates %}
+              {% if cell.count is not none %}<strong class="rate-count">{{ cell.count }}</strong>
+              {% elif cell.score is not none %}<span class="score-pill">{{ cell.score }}%</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            {% elif cell.score is not none %}
+              <span class="score-pill{% if cell.score >= 80 %} high{% elif cell.score < 60 %} low{% endif %}" title="{{ cell.answered }} answered, {{ cell.missing }} missing, {{ cell.not_applicable }} not applicable">{{ cell.score }}%</span>
+              <span class="cell-n">n={{ cell.answered - cell.not_applicable }}</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<script>
+  document.querySelector('.dashboard-controls').addEventListener('submit', function () {
+    var button = document.getElementById('load-table');
+    button.disabled = true;
+    button.textContent = 'Loading…';
+  });
+</script>
+{% endblock %}

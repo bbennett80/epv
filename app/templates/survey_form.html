@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="narrow">
+  <h1>{{ "Encuesta de percepción de participantes de investigación" if language == "es" else "Research Participant Perception Survey" }}</h1>
+  {% if request.query_params.get("saved") %}
+  <div class="flash">{{ "Guardado." if language == "es" else "Saved." }}</div>
+  {% endif %}
+  {% if participant.status == "complete" %}
+  <div class="flash">{{ "Esta encuesta ya fue enviada. Puede actualizarla y volver a enviarla si es necesario." if language == "es" else "This survey has already been submitted. You may update and resubmit it if needed." }}</div>
+  {% endif %}
+  {% if errors %}
+  <div class="flash error" role="alert">{{ "Revise las respuestas resaltadas." if language == "es" else "Please review the highlighted responses." }}</div>
+  {% endif %}
+  <form method="post" action="/s/{{ participant.token }}">
+    {% set last_section = namespace(value="") %}
+    {% for field in fields %}
+      <div data-survey-field="{{ field.name }}"
+        {% if field.branch %}data-branch-field="{{ field.branch.field }}" data-branch-checkbox="{{ field.branch.checkbox }}" data-branch-operator="{{ field.branch.operator }}" data-branch-value="{{ field.branch.value }}"{% endif %}
+        {% if not field.visible %}hidden{% endif %}>
+      {% if field.section and field.section != last_section.value %}
+        {% set last_section.value = field.section %}
+        <div class="section-header">{{ field.section }}</div>
+      {% endif %}
+      {% if field.field_type == "descriptive" %}
+        <div class="question"><p>{{ field.label }}</p></div>
+      {% else %}
+        <fieldset class="question{% if errors.get(field.name) %} invalid{% endif %}">
+          <legend class="question-label">{{ field.label }}</legend>
+          {% if field.field_type in ["radio", "yesno"] %}
+            {% set choices = field.choices %}
+            {% if field.field_type == "yesno" %}
+              {% set choices = [{"code":"1","label":("Sí" if language == "es" else "Yes")}, {"code":"0","label":("No" if language == "es" else "No")}] %}
+            {% endif %}
+            {% for choice in choices %}
+            <div class="choice">
+              <input id="{{ field.name }}_{{ choice.code }}" name="{{ field.name }}" type="radio" value="{{ choice.code }}" {% if values.get(field.name) == choice.code %}checked{% endif %} {% if field.required %}required{% endif %} data-choice-field="{{ field.name }}">
+              <label for="{{ field.name }}_{{ choice.code }}">{{ choice.label }}</label>
+            </div>
+            {% if choice.other_field %}
+            <div class="field other-field" data-other-parent="{{ field.name }}" data-other-code="{{ choice.code }}" {% if values.get(field.name) != choice.code %}hidden{% endif %}>
+              <label for="{{ choice.other_field.name }}">{{ choice.other_field.label }}</label>
+              <textarea id="{{ choice.other_field.name }}" name="{{ choice.other_field.name }}">{{ values.get(choice.other_field.name, "") }}</textarea>
+            </div>
+            {% endif %}
+            {% endfor %}
+          {% elif field.field_type == "dropdown" %}
+            <select name="{{ field.name }}" {% if field.required %}required{% endif %}>
+              <option value=""></option>
+              {% for choice in field.choices %}
+              <option value="{{ choice.code }}" {% if values.get(field.name) == choice.code %}selected{% endif %}>{{ choice.label }}</option>
+              {% endfor %}
+            </select>
+          {% elif field.field_type == "checkbox" %}
+            {% for choice in field.choices %}
+            <div class="choice">
+              <input id="{{ field.name }}_{{ choice.code }}" name="{{ field.name }}" type="checkbox" value="{{ choice.code }}" {% if choice.code in values.get(field.name, []) %}checked{% endif %} data-choice-field="{{ field.name }}">
+              <label for="{{ field.name }}_{{ choice.code }}">{{ choice.label }}</label>
+            </div>
+            {% if choice.other_field %}
+            <div class="field other-field" data-other-parent="{{ field.name }}" data-other-code="{{ choice.code }}" {% if choice.code not in values.get(field.name, []) %}hidden{% endif %}>
+              <label for="{{ choice.other_field.name }}">{{ choice.other_field.label }}</label>
+              <textarea id="{{ choice.other_field.name }}" name="{{ choice.other_field.name }}">{{ values.get(choice.other_field.name, "") }}</textarea>
+            </div>
+            {% endif %}
+            {% endfor %}
+          {% elif field.field_type == "notes" %}
+            <textarea name="{{ field.name }}" {% if field.required %}required{% endif %}>{{ values.get(field.name, "") }}</textarea>
+          {% else %}
+            <input name="{{ field.name }}" value="{{ values.get(field.name, "") }}" {% if field.required %}required{% endif %}>
+          {% endif %}
+          {% if errors.get(field.name) %}<p class="field-error">{{ errors[field.name] }}</p>{% endif %}
+        </fieldset>
+      {% endif %}
+      </div>
+    {% endfor %}
+    <div class="actions">
+      <button type="submit" name="action" value="save" class="secondary">{{ "Guardar y volver más tarde" if language == "es" else "Save and return later" }}</button>
+      <button type="submit" name="action" value="submit">{{ "Enviar encuesta" if language == "es" else "Submit survey" }}</button>
+    </div>
+  </form>
+</section>
+<script>
+  var initialValues = {{ values | tojson }};
+
+  function fieldValue(name, checkboxCode) {
+    if (checkboxCode) {
+      var checkbox = document.querySelector('[name="' + name + '"][value="' + checkboxCode + '"]');
+      return checkbox && checkbox.checked ? '1' : '0';
+    }
+    var checked = document.querySelector('[name="' + name + '"]:checked');
+    if (checked) return checked.value;
+    var control = document.querySelector('[name="' + name + '"]');
+    if (control) return control.value;
+    return initialValues[name] == null ? '' : String(initialValues[name]);
+  }
+
+  function compareBranch(actual, operator, expected) {
+    if (operator === '=') return actual === expected;
+    if (operator === '!=') return actual !== expected;
+    if (operator === '<') return actual < expected;
+    if (operator === '<=') return actual <= expected;
+    if (operator === '>') return actual > expected;
+    if (operator === '>=') return actual >= expected;
+    return false;
+  }
+
+  function updateBranchFields() {
+    document.querySelectorAll('[data-branch-field]').forEach(function (container) {
+      var actual = fieldValue(container.dataset.branchField, container.dataset.branchCheckbox);
+      var visible = compareBranch(actual, container.dataset.branchOperator, container.dataset.branchValue);
+      container.hidden = !visible;
+      container.querySelectorAll('input, select, textarea').forEach(function (control) {
+        control.disabled = !visible;
+      });
+    });
+  }
+
+  function updateOtherFields(parentName) {
+    document.querySelectorAll('[data-other-parent="' + parentName + '"]').forEach(function (container) {
+      var code = container.getAttribute('data-other-code');
+      var input = document.querySelector('[name="' + parentName + '"][value="' + code + '"]');
+      var isChecked = input && input.checked;
+      container.hidden = !isChecked;
+      if (!isChecked) {
+        var textarea = container.querySelector('textarea');
+        if (textarea) textarea.value = '';
+      }
+    });
+  }
+
+  document.querySelectorAll('[data-choice-field]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      updateOtherFields(input.getAttribute('data-choice-field'));
+      updateBranchFields();
+    });
+  });
+
+  document.querySelectorAll('select, input, textarea').forEach(function (control) {
+    control.addEventListener('change', updateBranchFields);
+  });
+
+  updateBranchFields();
+</script>
+{% endblock %}

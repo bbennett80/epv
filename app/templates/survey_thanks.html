@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel narrow">
+  <h1>{{ "Gracias" if language == "es" else "Thank you" }}</h1>
+  <p>{{ "Gracias por completar la encuesta." if language == "es" else "Thank you for completing the survey." }}</p>
+  <p class="muted">{{ "Puede regresar a su enlace si necesita actualizar una respuesta." if language == "es" else "You can return to your link if you need to update a response." }}</p>
+</section>
+{% endblock %}
